@@ -14,6 +14,12 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     iputils-ping \
     && rm -rf /var/lib/apt/lists/*
 
+# ryu==4.34 expects an older setuptools API (easy_install.get_script_args).
+RUN pip install --no-cache-dir --upgrade \
+    "pip<24.1" \
+    "setuptools<58" \
+    "wheel<0.38"
+
 # Python deps
 RUN pip install --no-cache-dir \
     ryu==4.34 \

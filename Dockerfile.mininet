@@ -13,16 +13,14 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     openvswitch-testcontroller \
     python3 \
     python3-pip \
-    python3-mininet \
     iproute2 \
     net-tools \
     iputils-ping \
     iperf \
     tcpdump \
+    netcat-openbsd \
     curl \
     && rm -rf /var/lib/apt/lists/*
-
-RUN pip3 install --no-cache-dir mininet
 
 RUN mkdir -p /logs /alerts
 
