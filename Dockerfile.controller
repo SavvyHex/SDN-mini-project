@@ -1,0 +1,45 @@
+# ── Stage 1: Ryu SDN Controller ───────────────────────────────────────────────
+FROM python:3.9-slim
+
+LABEL maintainer="SDN Port Monitor Project"
+LABEL description="Ryu OpenFlow controller – Port Status Monitoring"
+
+# System deps
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    gcc \
+    libffi-dev \
+    libssl-dev \
+    iproute2 \
+    net-tools \
+    iputils-ping \
+    && rm -rf /var/lib/apt/lists/*
+
+# Python deps
+RUN pip install --no-cache-dir \
+    ryu==4.34 \
+    eventlet==0.30.2 \
+    oslo.config \
+    webob \
+    requests
+
+# Create directories for logs and alerts
+RUN mkdir -p /logs /alerts
+
+# Copy controller application
+COPY controller/port_monitor.py /app/port_monitor.py
+
+WORKDIR /app
+
+# Expose OpenFlow port (controller listens here)
+EXPOSE 6633
+# Expose Ryu REST API port
+EXPOSE 8080
+
+# Entry point: start Ryu with our app + REST API + topology observer
+CMD ["ryu-manager", \
+     "--verbose", \
+     "--observe-links", \
+     "--ofp-tcp-listen-port", "6633", \
+     "--wsapi-port", "8080", \
+     "ryu.app.ofctl_rest", \
+     "/app/port_monitor.py"]

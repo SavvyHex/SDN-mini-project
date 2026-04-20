@@ -1,0 +1,103 @@
+version: "3.9"
+
+# ══════════════════════════════════════════════════════════════════════════════
+#  SDN Port Status Monitoring – Docker Compose
+#
+#  Services
+#  --------
+#  controller  – Ryu OpenFlow controller (port_monitor.py)
+#  mininet     – Mininet topology runner (needs privileged + host net)
+#  log-viewer  – Lightweight HTTP server to browse logs & alerts
+#
+#  Quick start
+#  -----------
+#    # Interactive Mininet CLI (default)
+#    docker compose up
+#
+#    # Run Scenario A only (forwarding test)
+#    RUN_MODE=scenario_a docker compose up --abort-on-container-exit
+#
+#    # Run both scenarios (full demo)
+#    RUN_MODE=full docker compose up --abort-on-container-exit
+# ══════════════════════════════════════════════════════════════════════════════
+
+services:
+
+  # ── Ryu SDN Controller ──────────────────────────────────────────────────────
+  controller:
+    build:
+      context: .
+      dockerfile: Dockerfile.controller
+    container_name: sdn-controller
+    hostname: controller
+    ports:
+      - "6633:6633"   # OpenFlow
+      - "8080:8080"   # Ryu REST API (ofctl_rest)
+    volumes:
+      - logs:/logs
+      - alerts:/alerts
+    networks:
+      - sdn-net
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python3", "-c",
+             "import socket; s=socket.socket(); s.connect(('localhost',6633)); s.close()"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    environment:
+      - PYTHONUNBUFFERED=1
+
+  # ── Mininet Topology ─────────────────────────────────────────────────────────
+  mininet:
+    build:
+      context: .
+      dockerfile: Dockerfile.mininet
+    container_name: sdn-mininet
+    # Mininet needs privileged access and host PID/net namespaces
+    privileged: true
+    network_mode: host          # Mininet manages its own virtual interfaces
+    pid: host
+    depends_on:
+      controller:
+        condition: service_healthy
+    volumes:
+      - logs:/logs
+      - alerts:/alerts
+      # share host kernel modules required by OVS
+      - /lib/modules:/lib/modules:ro
+    environment:
+      - CONTROLLER_IP=127.0.0.1   # host loopback (because network_mode: host)
+      - CONTROLLER_PORT=6633
+      - RUN_MODE=${RUN_MODE:-demo}  # demo | scenario_a | scenario_b | full
+    stdin_open: true
+    tty: true
+
+  # ── Log Viewer (simple HTTP file browser) ────────────────────────────────────
+  log-viewer:
+    image: python:3.9-slim
+    container_name: sdn-log-viewer
+    working_dir: /data
+    command: >
+      sh -c "pip install --quiet tabulate &&
+             python3 -m http.server 9090"
+    ports:
+      - "9090:9090"
+    volumes:
+      - logs:/data/logs:ro
+      - alerts:/data/alerts:ro
+    networks:
+      - sdn-net
+    depends_on:
+      - controller
+    restart: unless-stopped
+
+networks:
+  sdn-net:
+    driver: bridge
+
+volumes:
+  logs:
+    driver: local
+  alerts:
+    driver: local

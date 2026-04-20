@@ -1,0 +1,36 @@
+# ── Mininet Topology Container ────────────────────────────────────────────────
+# Requires --privileged and host networking because Mininet needs kernel namespaces
+FROM ubuntu:22.04
+
+LABEL description="Mininet topology – Port Status Monitoring"
+
+ENV DEBIAN_FRONTEND=noninteractive
+
+# Install Mininet and tools
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    mininet \
+    openvswitch-switch \
+    openvswitch-testcontroller \
+    python3 \
+    python3-pip \
+    python3-mininet \
+    iproute2 \
+    net-tools \
+    iputils-ping \
+    iperf \
+    tcpdump \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN pip3 install --no-cache-dir mininet
+
+RUN mkdir -p /logs /alerts
+
+COPY mininet/topology.py /app/topology.py
+COPY mininet/entrypoint.sh /app/entrypoint.sh
+RUN chmod +x /app/entrypoint.sh
+
+WORKDIR /app
+
+# OVS needs to be started before Mininet runs
+ENTRYPOINT ["/app/entrypoint.sh"]
